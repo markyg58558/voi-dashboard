@@ -52,7 +52,6 @@ export default function ArtistForm({
   initial?: Partial<Artist>;
   onDone?: () => void;
 }) {
-  // base
   const [name, setName] = useState(initial?.name ?? "");
   const [email, setEmail] = useState(initial?.email ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
@@ -61,7 +60,6 @@ export default function ArtistForm({
   const [bio, setBio] = useState(initial?.bio ?? "");
   const [status, setStatus] = useState<"active" | "inactive">(initial?.status ?? "active");
 
-  // new fields
   const [abn, setAbn] = useState(initial?.abn ?? "");
   const [gstRegistered, setGstRegistered] = useState<boolean>(Boolean(initial?.gstRegistered));
   const [commission, setCommission] = useState(
@@ -77,10 +75,9 @@ export default function ArtistForm({
   const [error, setError] = useState<string | null>(null);
 
   // helpers
-  const toInputDate = (v?: any) => {
+  const toInputDate = (v?: Timestamp | Date | null) => {
     if (!v) return "";
-    const d: Date = v instanceof Date ? v : v?.toDate ? v.toDate() : new Date(v);
-    if (Number.isNaN(d.getTime())) return "";
+    const d = v instanceof Timestamp ? v.toDate() : v;
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
     const dd = String(d.getDate()).padStart(2, "0");
@@ -88,14 +85,15 @@ export default function ArtistForm({
   };
 
   useEffect(() => {
-    setStartDateStr(toInputDate(initial?.startDate));
-    setEndDateStr(toInputDate(initial?.endDate));
+    setStartDateStr(toInputDate(initial?.startDate ?? null));
+    setEndDateStr(toInputDate(initial?.endDate ?? null));
   }, [initial?.startDate, initial?.endDate]);
 
   const toggleService = (s: string) =>
     setServices((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
 
-  const omitUndefined = <T extends Record<string, any>>(obj: T): T =>
+  // drop keys that are undefined (Firestore disallows undefined)
+  const omitUndefined = <T extends Record<string, unknown>>(obj: T): T =>
     Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as T;
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -151,9 +149,9 @@ export default function ArtistForm({
       }
 
       onDone?.();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err?.message ?? "Failed to save");
+      setError("Failed to save");
     } finally {
       setSaving(false);
     }
@@ -169,7 +167,7 @@ export default function ArtistForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="status">Status</Label>
-          <Select value={status} onValueChange={(v) => setStatus(v as any)}>
+          <Select value={status} onValueChange={(v) => setStatus(v as "active" | "inactive")}>
             <SelectTrigger id="status"><SelectValue placeholder="Select status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="active">Active</SelectItem>

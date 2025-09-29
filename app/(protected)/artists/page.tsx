@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import {
   onSnapshot,
@@ -12,6 +12,7 @@ import {
   doc,
   getDoc,
   Timestamp,
+  type DocumentData,
 } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,8 +26,12 @@ import {
 import ArtistForm, { type Artist } from "@/components/artists/ArtistForm";
 import RoleGate from "@/components/RoleGate";
 
-type ArtistRow = Artist & {
+type ArtistRow = {
   id: string;
+  name: string;
+  email?: string;
+  instagram?: string;
+  status: "active" | "inactive";
   createdAt?: Timestamp | null;
   updatedAt?: Timestamp | null;
 };
@@ -48,7 +53,7 @@ export default function ArtistsPage() {
   const [editInitial, setEditInitial] = useState<Partial<Artist> | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
 
-  // live list: ONLY active artists
+  // live list: ONLY active artists, alphabetically by name
   useEffect(() => {
     const qy = query(
       collection(db, "artists"),
@@ -57,15 +62,15 @@ export default function ArtistsPage() {
     );
     const unsub = onSnapshot(qy, (snap) => {
       const items: ArtistRow[] = snap.docs.map((d) => {
-        const data = d.data() as any;
+        const data: DocumentData = d.data();
         return {
           id: d.id,
-          name: data.name ?? "",
-          email: data.email,
-          instagram: data.instagram,
-          status: (data.status ?? "active") as "active" | "inactive",
-          createdAt: data.createdAt ?? null,
-          updatedAt: data.updatedAt ?? null,
+          name: (data.name as string) ?? "",
+          email: data.email as string | undefined,
+          instagram: data.instagram as string | undefined,
+          status: ((data.status as string) ?? "active") as "active" | "inactive",
+          createdAt: (data.createdAt as Timestamp | null) ?? null,
+          updatedAt: (data.updatedAt as Timestamp | null) ?? null,
         };
       });
       setArtists(items);
@@ -80,7 +85,7 @@ export default function ArtistsPage() {
     setEditOpen(true);
     try {
       const snap = await getDoc(doc(db, "artists", id));
-      setEditInitial((snap.data() as any) ?? null);
+      setEditInitial((snap.data() as Partial<Artist> | undefined) ?? null);
     } finally {
       setLoadingEdit(false);
     }
@@ -169,7 +174,16 @@ export default function ArtistsPage() {
         </Card>
 
         {/* Edit slide-over */}
-        <Sheet open={editOpen} onOpenChange={(o) => { if (!o) { setEditOpen(false); setEditId(null); setEditInitial(null); } }}>
+        <Sheet
+          open={editOpen}
+          onOpenChange={(o) => {
+            if (!o) {
+              setEditOpen(false);
+              setEditId(null);
+              setEditInitial(null);
+            }
+          }}
+        >
           <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
             <SheetHeader>
               <SheetTitle>Edit artist</SheetTitle>
@@ -182,7 +196,10 @@ export default function ArtistsPage() {
                   mode="edit"
                   id={editId}
                   initial={editInitial}
-                  onDone={() => { setEditOpen(false); setEditId(null); }}
+                  onDone={() => {
+                    setEditOpen(false);
+                    setEditId(null);
+                  }}
                 />
               ) : (
                 <p className="text-sm text-muted-foreground">No artist selected.</p>
