@@ -4,10 +4,18 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/lib/firebase";
 import {
-  collection, doc, getDoc, getDocs, limit, query, setDoc,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  query,
+  setDoc,
 } from "firebase/firestore";
 
-type Role = "admin" | "reception" | "artist" | null;
+// 👇 Export this so other files (RoleGate, nav) can import it
+export type RoleName = "admin" | "reception" | "artist";
+type Role = RoleName | null;
 
 type RoleCtx = {
   role: Role;
@@ -15,7 +23,11 @@ type RoleCtx = {
   refresh: () => Promise<void>;
 };
 
-const Ctx = createContext<RoleCtx>({ role: null, loading: true, refresh: async () => {} });
+const Ctx = createContext<RoleCtx>({
+  role: null,
+  loading: true,
+  refresh: async () => {},
+});
 
 export function RoleProvider({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<Role>(null);
@@ -23,16 +35,22 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
 
   const hydrate = async () => {
     const u = auth.currentUser;
-    if (!u) { setRole(null); setLoading(false); return; }
+    if (!u) {
+      setRole(null);
+      setLoading(false);
+      return;
+    }
 
-    // ensure user doc exists; first user gets admin, otherwise artist
     const userRef = doc(db, "users", u.uid);
     const snap = await getDoc(userRef);
+
     if (!snap.exists()) {
-      let defaultRole: Role = "artist";
+      // First user becomes admin; others default to artist (can be changed later in Settings)
+      let defaultRole: RoleName = "artist";
       const firstQuery = query(collection(db, "users"), limit(1));
       const firstSnap = await getDocs(firstQuery);
       if (firstSnap.empty) defaultRole = "admin";
+
       await setDoc(userRef, {
         uid: u.uid,
         email: u.email || "",
@@ -40,19 +58,26 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         role: defaultRole,
         createdAt: new Date(),
       });
+
       setRole(defaultRole);
     } else {
-      setRole((snap.data().role as Role) || "artist");
+      const data = snap.data() as { role?: RoleName };
+      setRole(data.role ?? "artist");
     }
+
     setLoading(false);
   };
 
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, () => { setLoading(true); hydrate(); });
+    const unsub = onAuthStateChanged(auth, () => {
+      setLoading(true);
+      hydrate();
+    });
     return () => unsub();
   }, []);
 
   const value = useMemo(() => ({ role, loading, refresh: hydrate }), [role, loading]);
+
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
