@@ -8,13 +8,18 @@ import Logo from "@/components/Logo";
 import Sidebar from "@/components/nav/Sidebar";
 import { navItems } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { useRole } from "@/contexts/RoleContext";
 
 // shadcn
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetTrigger, SheetContent } from "@/components/ui/sheet";
 
@@ -24,11 +29,18 @@ import { Menu } from "lucide-react";
 export default function TopNav() {
   const pathname = usePathname();
   const router = useRouter();
+  const { role } = useRole(); // "admin" | "reception" | "artist" | null
 
   const logout = async () => {
     await signOut(auth);
     router.replace("/login");
   };
+
+  const user = auth.currentUser;
+  const initial = (user?.displayName?.[0] ?? user?.email?.[0] ?? "U").toUpperCase();
+
+  const canSee = (item: (typeof navItems)[number]) =>
+    !item.roles || (role && item.roles.includes(role));
 
   return (
     <header className="sticky top-0 z-40 border-b bg-white/90 backdrop-blur">
@@ -52,8 +64,8 @@ export default function TopNav() {
 
         {/* Primary nav (desktop) */}
         <nav className="hidden md:flex items-center gap-1">
-          {navItems.map(({ href, label }) => {
-            const active = pathname === href;
+          {navItems.filter(canSee).map(({ href, label }) => {
+            const active = pathname === href || pathname.startsWith(`${href}/`);
             return (
               <Link key={href} href={href}>
                 <Button
@@ -68,30 +80,44 @@ export default function TopNav() {
         </nav>
 
         <div className="ml-auto">
-          <AccountMenu onLogout={logout} />
+          <AccountMenu onLogout={logout} initial={initial} role={role ?? undefined} />
         </div>
       </div>
     </header>
   );
 }
 
-function AccountMenu({ onLogout }: { onLogout: () => Promise<void> }) {
+function AccountMenu({
+  onLogout,
+  initial,
+  role,
+}: {
+  onLogout: () => Promise<void>;
+  initial: string;
+  role?: "admin" | "reception" | "artist";
+}) {
   const router = useRouter();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" className="gap-2">
-          <Avatar className="h-6 w-6"><AvatarFallback>M</AvatarFallback></Avatar>
+          <Avatar className="h-6 w-6">
+            <AvatarFallback>{initial}</AvatarFallback>
+          </Avatar>
           Account
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>Signed in</DropdownMenuLabel>
+        <DropdownMenuLabel>
+          Signed in{role ? ` — ${role}` : ""}
+        </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={() => router.push("/dashboard")}>Dashboard</DropdownMenuItem>
         <DropdownMenuItem onClick={() => router.push("/artists")}>Manage artists</DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={onLogout} className="text-red-600">Log out</DropdownMenuItem>
+        <DropdownMenuItem onClick={onLogout} className="text-red-600">
+          Log out
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
